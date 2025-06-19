@@ -137,7 +137,7 @@ def borrar_conexion():
         print(f"Conexión con handler '{handler}' eliminada correctamente.")
     else:
         print("No se encontró una conexión con ese handler.")
-        
+
 #Punto de conexión de un host
 def get_attachment_points(mac_address):
     url = f"{FLOODLIGHT_URL}/wm/device/"
@@ -184,8 +184,11 @@ def listar_alumnos():
         print("3. Volver")
         opc_lista_alumnos = input("Seleccione una opción: ")
         if opc_lista_alumnos == "1":
+            table = PrettyTable()
+            table.field_names = ["Código", "Nombre", "MAC"]
             for a in alumnos:
-                print(f"{a.codigo} - {a.nombre} - {a.mac}")
+                table.add_row([a.codigo, a.nombre, a.mac])
+            print(table)
             break
         elif opc_lista_alumnos == "2":
             cod_curso = input("Ingrese el código del curso: ")
@@ -193,12 +196,13 @@ def listar_alumnos():
             if not curso:
                 print("Curso no encontrado.")
             else:
-                print(f"Alumnos del curso {cod_curso}:")
+                table = PrettyTable()
+                table.field_names = ["Código", "Nombre", "MAC"]
                 for cod in curso.alumnos:
                     alumno = next((a for a in alumnos if a.codigo == cod), None)
                     if alumno:
-                        print(f"{alumno.codigo} - {alumno.nombre} - {alumno.mac}")
-            break
+                        table.add_row([alumno.codigo, alumno.nombre, alumno.mac])
+                print(table)
         elif opc_lista_alumnos == "3":
             break
         else:
@@ -234,8 +238,14 @@ def menu_cursos():
 
 def listar_cursos():
     global cursos
-    for c in cursos:
-        print(f"{c.codigo} - {c.nombre} [{c.estado}]")
+    if not cursos:
+        print("No hay cursos registrados.")
+    else:
+        table = PrettyTable()
+        table.field_names = ["Código", "Nombre", "Estado"]
+        for c in cursos:
+            table.add_row([c.codigo, c.nombre, c.estado])
+        print(table)
 
 def detalle_curso():
     global cursos
@@ -290,10 +300,15 @@ def actualizar_curso():
 
 def listar_servidores():
     global servidores
-    for s in servidores:
-        print(f"{s.nombre} - {s.ip}")
-        for srv in s.servicios:
-            print(f"   > {srv.nombre} [{srv.protocolo}:{srv.puerto}]")
+    if not servidores:
+        print("No hay servidores registrados.")
+    else:
+        table = PrettyTable()
+        table.field_names = ["Nombre", "IP", "Servicios"]
+        for s in servidores:
+            servicios_str = ", ".join([f"{srv.nombre}({srv.protocolo}:{srv.puerto})" for srv in s.servicios])
+            table.add_row([s.nombre, s.ip, servicios_str])
+        print(table)
 
 def detalle_servidor():
     global servidores
