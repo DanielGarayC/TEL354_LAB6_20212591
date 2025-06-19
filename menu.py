@@ -3,6 +3,10 @@ import yaml
 
 FLOODLIGHT_URL = "http://10.20.12.161:8080"
 
+alumnos = []
+cursos = []
+servidores = []
+
 class Alumno:
     def __init__(self, nombre, codigo, mac):
         self.nombre = nombre
@@ -65,7 +69,6 @@ def crear_conexion():
         print("Alumno NO autorizado para acceder al servicio.")
         return
 
-    # Buscar servicio en objeto servidor
     servicio_obj = next((x for x in servidor.servicios if x.nombre == nombre_servicio), None)
 
     if servicio_obj:
@@ -100,33 +103,183 @@ def get_attachment_points(mac_address):
     
     return None, None
 
-def listar_alumnos():
-    for a in alumnos:
-        print(f"{a.codigo} - {a.nombre} - {a.mac}")
+def menu_alumnos():
+    while True:
+        print("Bienvenido al submenú de alumnos owo ")
+        print("--- Seleccione una acción a realizar: ")
+        print("1. Listar")
+        print("2. Mostrar detalle")
+        print("3. Volver al menú principal")
+        opcion_alumnos = input("Seleccione una opción: ")
+        if opcion_alumnos == "1":
+            listar_alumnos()
+        elif opcion_alumnos == "2":
+            detalle_alumno()
+        elif opcion_alumnos == "3": 
+            break
+        else:
+            print("Opción no válida")
 
+def listar_alumnos():
+    global alumnos
+    while True:
+        print("1. Mostrar todos los alumnos")
+        print("2. Filtrar por curso")
+        print("3. Volver")
+        opc_lista_alumnos = input("Seleccione una opción: ")
+        if opc_lista_alumnos == "1":
+            for a in alumnos:
+                print(f"{a.codigo} - {a.nombre} - {a.mac}")
+            break
+        elif opc_lista_alumnos == "2":
+            cod_curso = input("Ingrese el código del curso: ")
+            curso = next((c for c in cursos if c.codigo == cod_curso), None)
+            if not curso:
+                print("Curso no encontrado.")
+            else:
+                print(f"Alumnos del curso {cod_curso}:")
+                for cod in curso.alumnos:
+                    alumno = next((a for a in alumnos if a.codigo == cod), None)
+                    if alumno:
+                        print(f"{alumno.codigo} - {alumno.nombre} - {alumno.mac}")
+            break
+        elif opc_lista_alumnos == "3":
+            break
+        else:
+            print("Ingrese una opción válida")
+
+def detalle_alumno():
+    global alumnos
+    codigo = input("Ingrese el código del alumno: ")
+    alumno = next((a for a in alumnos if a.codigo == codigo), None)
+    if alumno:
+        print(f"Nombre: {alumno.nombre}\nCódigo: {alumno.codigo}\nMAC: {alumno.mac}")
+    else:
+        print("Alumno no encontrado.")
+
+def menu_cursos():
+    while True:
+        print("Bienvenido al submenú de cursos owo ")
+        print("--- Seleccione una acción a realizar: ")
+        print("1. Listar ")
+        print("2. Mostrar detalle ")
+        print("3. Actualizar ")
+        print("4. Volver al menú principal")
+        opcion_cursos = input("Seleccione una opción: ")
+        if (opcion_cursos=="1"):
+            listar_cursos()
+        elif (opcion_cursos=="2"):
+            detalle_curso()
+        elif (opcion_cursos=="3"): 
+            actualizar_curso()
+        elif (opcion_cursos=="4"): 
+            break
+        else:
+            print("Opción no válida")
 
 def listar_cursos():
+    global cursos
     for c in cursos:
         print(f"{c.codigo} - {c.nombre} [{c.estado}]")
 
+def detalle_curso():
+    global cursos
+    codigo = input("Ingrese el código del curso: ")
+    curso = next((c for c in cursos if c.codigo == codigo), None)
+    if curso:
+        print(f"Nombre: {curso.nombre}\nEstado: {curso.estado}")
+        print("Alumnos:")
+        for cod in curso.alumnos:
+            print(f" - {cod}")
+        print("Servidores:")
+        for s in curso.servidores:
+            print(f" - {s['nombre']}")
+            print(f"   Servicios permitidos: {', '.join(s['servicios_permitidos'])}")
+    else:
+        print("Curso no encontrado.")
+
+def actualizar_curso():
+    global cursos, alumnos
+    codigo = input("Ingrese el código del curso a actualizar: ")
+    curso = next((c for c in cursos if c.codigo == codigo), None)
+
+    if not curso:
+        print("Curso no encontrado.")
+        return
+
+    while True:
+        print(f"\nCurso: {curso.codigo} - {curso.nombre}")
+        print("1. Agregar alumno")
+        print("2. Eliminar alumno")
+        print("3. Volver")
+        op = input("Seleccione una opción: ")
+
+        if op == "1":
+            cod_alumno = input("Código del alumno a agregar: ")
+            if cod_alumno in curso.alumnos:
+                print("El alumno ya está inscrito en el curso.")
+            else:
+                curso.agregar_alumno(cod_alumno)
+                print("Alumno agregado correctamente.")
+        elif op == "2":
+            cod_alumno = input("Código del alumno a eliminar: ")
+            if cod_alumno in curso.alumnos:
+                curso.remover_alumno(cod_alumno)
+                print("Alumno eliminado del curso.")
+            else:
+                print("El alumno no pertenece al curso.")
+        elif op == "3":
+            break
+        else:
+            print("Opción inválida.")
+
 def listar_servidores():
+    global servidores
     for s in servidores:
         print(f"{s.nombre} - {s.ip}")
         for srv in s.servicios:
             print(f"   > {srv.nombre} [{srv.protocolo}:{srv.puerto}]")
 
-def importar_datos(ruta_archivo):
-    with open(ruta_archivo, 'r') as file:
+def detalle_servidor():
+    global servidores
+    nombre = input("Ingrese el nombre del servidor: ")
+    servidor = next((s for s in servidores if s.nombre == nombre), None)
+    if servidor:
+        print(f"IP: {servidor.ip}\nServicios:")
+        for srv in servidor.servicios:
+            print(f" - {srv.nombre} ({srv.protocolo}:{srv.puerto})")
+    else:
+        print("Servidor no encontrado.")
+
+def menu_servidores():
+    while True:
+        print("Bienvenido al submenú de servidores owo ")
+        print("--- Seleccione una acción a realizar: ")
+        print("1. Listar")
+        print("2. Mostrar detalle")
+        print("3. Volver al menú principal")
+        opcion_servidores = input("Seleccione una opción: ")
+        if opcion_servidores == "1":
+            listar_servidores()
+        elif opcion_servidores == "2":
+            detalle_servidor()
+        elif opcion_servidores == "3":
+            break
+        else:
+            print("Opción no válida")
+
+def importar_datos(name_archivo):
+    with open(name_archivo, 'r') as file:
         data = yaml.safe_load(file)
 
-    alumnos = [Alumno(**a) for a in data.get('alumnos', [])]
+    alumnos = [Alumno(a['nombre'], str(a['codigo']), a['mac']) for a in data.get('alumnos', [])]
 
     cursos = []
     for c in data.get('cursos', []):
         cursos.append(Curso(
             nombre=c['nombre'],
             estado=c['estado'],
-            alumnos=c['alumnos'],
+            alumnos=[str(cod) for cod in c['alumnos']],  
             servidores=c['servidores'],
             codigo=c['codigo']
         ))
@@ -137,15 +290,6 @@ def importar_datos(ruta_archivo):
         servidores.append(Servidor(s['nombre'], s['ip'], servicios))
 
     return alumnos, cursos, servidores
-
-def leer_nombres_servidores():
-    with open('datos.yaml', 'r') as archivo:
-        datos = yaml.safe_load(archivo)
-
-        servidores = datos.get('servidores', [])
-        print("Servidores:")
-        for servidor in servidores:
-            print(servidor.get('nombre'))
 
 def insertar_flows(mac_src, ip_dst, protocolo, puerto):
     dpid, port = get_attachment_points(mac_src)
@@ -198,18 +342,28 @@ def menu():
         print("6. Políticas")
         print("7. Conexiones")
         print("0. Salir")
-        opc = input("Seleccione: ")
+        opc = input("Seleccione una opción: ")
 
         if opc == "1":
-            ruta = input("Ruta del archivo YAML: ")
+            name = input("Ingresa el nombre  del archivo YAML: ")
             global alumnos, cursos, servidores
-            alumnos, cursos, servidores = importar_datos(ruta)
+            if not name.endswith(".yaml"):
+                name += ".yaml"
+            alumnos, cursos, servidores = importar_datos(name)
+            print("Datos importados exitosamente :D")
+            print("Presione m para volver al menú: ")
+            while True:
+                tecla = input()
+                if tecla=="m":
+                    break
+                else:
+                    continue
         elif opc == "3":
-            listar_cursos()
+            menu_cursos()
         elif opc == "4":
-            listar_alumnos()
+            menu_alumnos()
         elif opc == "5":
-            listar_servidores()
+            menu_servidores()
         elif opc == "7":
             crear_conexion()
         elif opc == "0":
