@@ -80,10 +80,12 @@ def listar_conexiones():
     if not conexiones:
         print("No hay conexiones registradas.")
     else:
-        print("\nConexiones registradas:")
+        table = PrettyTable()
+        table.field_names = ["Handler", "Alumno", "Servidor", "Servicio"]
         for c in conexiones:
-            print(f"Handler: {c.handler} | Alumno: {c.alumno.nombre} | Servidor: {c.servidor.nombre} | Servicio: {c.servicio.nombre}")
-
+            table.add_row([c.handler, c.alumno.nombre, c.servidor.nombre, c.servicio.nombre])
+        print(table)
+        
 def crear_conexion():
     global conexiones
     cod_alumno = input("Código del alumno: ")
@@ -131,7 +133,6 @@ def borrar_conexion():
     handler = input("Ingrese el handler de la conexión a eliminar: ")
     conexion = next((c for c in conexiones if c.handler == handler), None)
     if conexion:
-        # Elimina también el flow del switch (vía Floodlight)
         requests.delete(f"{FLOODLIGHT_URL}/wm/staticflowpusher/json", json={"name": handler})
         conexiones.remove(conexion)
         print(f"Conexión con handler '{handler}' eliminada correctamente.")
