@@ -1,11 +1,13 @@
 import requests
 import yaml
+from prettytable import PrettyTable
 
 FLOODLIGHT_URL = "http://10.20.12.161:8080"
 
 alumnos = []
 cursos = []
 servidores = []
+conexiones = []
 
 class Alumno:
     def __init__(self, nombre, codigo, mac):
@@ -46,7 +48,44 @@ class Servicio:
         self.protocolo = protocolo
         self.puerto = puerto
 
+class Conexion:
+    def __init__(self, handler, alumno, servidor, servicio):
+        self.handler = handler
+        self.alumno = alumno
+        self.servidor = servidor
+        self.servicio = servicio
+
+def menu_conexiones():
+    while True:
+        print("Bienvenido al submenú de conexiones owo ")
+        print("1. Crear conexión")
+        print("2. Listar conexiones")
+        print("3. Borrar conexión")
+        print("4. Volver al menú principal ")
+        opcion = input("Seleccione una opción: ")
+
+        if opcion == "1":
+            crear_conexion()
+        elif opcion == "2":
+            listar_conexiones()
+        elif opcion == "3":
+            borrar_conexion()
+        elif opcion == "4":
+            break
+        else:
+            print("Opción no válida")
+
+def listar_conexiones():
+    global conexiones
+    if not conexiones:
+        print("No hay conexiones registradas.")
+    else:
+        print("\nConexiones registradas:")
+        for c in conexiones:
+            print(f"Handler: {c.handler} | Alumno: {c.alumno.nombre} | Servidor: {c.servidor.nombre} | Servicio: {c.servicio.nombre}")
+
 def crear_conexion():
+    global conexiones
     cod_alumno = input("Código del alumno: ")
     nombre_servicio = input("Servicio (ej: ssh): ").lower()
     nombre_servidor = input("Servidor (ej: Servidor 1): ")
@@ -77,10 +116,28 @@ def crear_conexion():
         protocolo = servicio_obj.protocolo
         puerto = servicio_obj.puerto
         success = insertar_flows(mac_src, ip_dst, protocolo, puerto)
-        print("Conexión creada." if success else "Error al insertar flow.")
+
+        if success:
+            handler = f"{alumno.codigo}-{servidor.nombre}-{servicio_obj.nombre}"
+            conexiones.append(Conexion(handler, alumno, servidor, servicio_obj))
+            print(f"Conexión creada con handler: {handler}")
+        else:
+            print("Error al insertar flow.")
     else:
         print("Servicio no encontrado.")
 
+def borrar_conexion():
+    global conexiones
+    handler = input("Ingrese el handler de la conexión a eliminar: ")
+    conexion = next((c for c in conexiones if c.handler == handler), None)
+    if conexion:
+        # Elimina también el flow del switch (vía Floodlight)
+        requests.delete(f"{FLOODLIGHT_URL}/wm/staticflowpusher/json", json={"name": handler})
+        conexiones.remove(conexion)
+        print(f"Conexión con handler '{handler}' eliminada correctamente.")
+    else:
+        print("No se encontró una conexión con ese handler.")
+        
 #Punto de conexión de un host
 def get_attachment_points(mac_address):
     url = f"{FLOODLIGHT_URL}/wm/device/"
@@ -106,7 +163,6 @@ def get_attachment_points(mac_address):
 def menu_alumnos():
     while True:
         print("Bienvenido al submenú de alumnos owo ")
-        print("--- Seleccione una acción a realizar: ")
         print("1. Listar")
         print("2. Mostrar detalle")
         print("3. Volver al menú principal")
@@ -160,7 +216,6 @@ def detalle_alumno():
 def menu_cursos():
     while True:
         print("Bienvenido al submenú de cursos owo ")
-        print("--- Seleccione una acción a realizar: ")
         print("1. Listar ")
         print("2. Mostrar detalle ")
         print("3. Actualizar ")
@@ -254,7 +309,6 @@ def detalle_servidor():
 def menu_servidores():
     while True:
         print("Bienvenido al submenú de servidores owo ")
-        print("--- Seleccione una acción a realizar: ")
         print("1. Listar")
         print("2. Mostrar detalle")
         print("3. Volver al menú principal")
@@ -365,7 +419,7 @@ def menu():
         elif opc == "5":
             menu_servidores()
         elif opc == "7":
-            crear_conexion()
+            menu_conexiones()
         elif opc == "0":
             break
 
