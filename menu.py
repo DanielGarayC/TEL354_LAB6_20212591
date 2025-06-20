@@ -88,11 +88,11 @@ def listar_conexiones():
         
 def crear_conexion():
     global conexiones
-    cod_alumno = input("Código del alumno: ")
-    nombre_servicio = input("Servicio (ej: ssh): ").lower()
-    nombre_servidor = input("Servidor (ej: Servidor 1): ")
+    cod_alumno = input("Ingrese el código del alumno: ")
+    nombre_servicio = input("Ingrese el servicio: ").lower()
+    nombre_servidor = input("Ingrese el servidor: ")
 
-    alumno = next((a for a in alumnos if a.codigo == cod_alumno), None)
+    alumno = next((a for a in alumnos if str(a.codigo) == cod_alumno), None)
     servidor = next((s for s in servidores if s.nombre == nombre_servidor), None)
 
     if not alumno or not servidor:
@@ -339,27 +339,30 @@ def menu_servidores():
             print("Opción no válida")
 
 def importar_datos(name_archivo):
-    with open(name_archivo, 'r') as file:
-        data = yaml.safe_load(file)
+    try:
+        with open(name_archivo, 'r') as file:
+            data = yaml.safe_load(file)
 
-    alumnos = [Alumno(a['nombre'], str(a['codigo']), a['mac']) for a in data.get('alumnos', [])]
+        alumnos = [Alumno(a['nombre'], str(a['codigo']), a['mac']) for a in data.get('alumnos', [])]
 
-    cursos = []
-    for c in data.get('cursos', []):
-        cursos.append(Curso(
-            nombre=c['nombre'],
-            estado=c['estado'],
-            alumnos=[str(cod) for cod in c['alumnos']],  
-            servidores=c['servidores'],
-            codigo=c['codigo']
-        ))
+        cursos = []
+        for c in data.get('cursos', []):
+            cursos.append(Curso(
+                nombre=c['nombre'],
+                estado=c['estado'],
+                alumnos=[str(cod) for cod in c['alumnos']],  
+                servidores=c['servidores'],
+                codigo=c['codigo']
+            ))
 
-    servidores = []
-    for s in data.get('servidores', []):
-        servicios = [Servicio(**serv) for serv in s['servicios']]
-        servidores.append(Servidor(s['nombre'], s['ip'], servicios))
+        servidores = []
+        for s in data.get('servidores', []):
+            servicios = [Servicio(**serv) for serv in s['servicios']]
+            servidores.append(Servidor(s['nombre'], s['ip'], servicios))
 
-    return alumnos, cursos, servidores
+        return alumnos, cursos, servidores
+    except: 
+        print("Ocurrió un error al importar los datos del YAML")
 
 def insertar_flows(mac_src, ip_dst, protocolo, puerto):
     dpid, port = get_attachment_points(mac_src)
