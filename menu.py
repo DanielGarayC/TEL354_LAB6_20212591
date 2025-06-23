@@ -99,6 +99,7 @@ def crear_conexion():
         print("Alumno o servidor no encontrado.")
         return
 
+    #Autenticación :D
     autorizado = False
     for curso in cursos:
         if curso.estado == "DICTANDO" and cod_alumno in curso.alumnos:
@@ -110,6 +111,7 @@ def crear_conexion():
         print("Alumno NO autorizado para acceder al servicio.")
         return
 
+    #En caso tenga autorización de acceder a dicho servidor, se busca al servicio
     servicio_obj = next((x for x in servidor.servicios if x.nombre == nombre_servicio), None)
 
     if servicio_obj:
@@ -117,14 +119,38 @@ def crear_conexion():
         ip_dst = servidor.ip
         protocolo = servicio_obj.protocolo
         puerto = servicio_obj.puerto
-        success = insertar_flows(mac_src, ip_dst, protocolo, puerto)
+        mac_dst = get_mac_from_ip(ip_dst)
+        if not mac_dst:
+            print("No se pudo obtener la MAC del servidor desde su IP.")
+            return
 
+        #Obtenemos los parámetros necesarios para get_route
+        src_dpid, src_port = get_attachment_points(mac_src)
+        dst_dpid, dst_port = get_attachment_points(mac_dst)
+
+        if not src_dpid or not dst_dpid:
+            print("No se pudo determinar el punto de conexión.")
+            return
+        
+        #Obtenemos la ruta :D
+        ruta = get_route(src_dpid, src_port, dst_dpid, dst_port)
+
+        if not ruta:
+            print("No se pudo calcular la ruta entre el alumno y el servidor.")
+            return
+
+        handler = f"{alumno.codigo}-{servidor.nombre}-{servicio_obj.nombre}"
+        
+        #Obtenemos la MAC del servidor, que es necesaria para la creación del flow
+        
+
+        success = build_route(handler, ruta, mac_src, mac_dst, ip_dst, protocolo, puerto)
+
+        #Si se logra  establecer la conexión correctamente
         if success:
-            handler = f"{alumno.codigo}-{servidor.nombre}-{servicio_obj.nombre}"
             conexiones.append(Conexion(handler, alumno, servidor, servicio_obj))
             print(f"Conexión creada con handler: {handler}")
-        else:
-            print("Error al insertar flow.")
+
     else:
         print("Servicio no encontrado.")
 
@@ -132,12 +158,25 @@ def borrar_conexion():
     global conexiones
     handler = input("Ingrese el handler de la conexión a eliminar: ")
     conexion = next((c for c in conexiones if c.handler == handler), None)
-    if conexion:
-        requests.delete(f"{FLOODLIGHT_URL}/wm/staticflowpusher/json", json={"name": handler})
-        conexiones.remove(conexion)
-        print(f"Conexión con handler '{handler}' eliminada correctamente.")
-    else:
+
+    if not conexion:
         print("No se encontró una conexión con ese handler.")
+        return
+
+    # 10 saltos (por defecto)
+    for i in range(10):
+        eliminado = False
+        for tipo in ["fwd", "rev", "arp"]:
+            flow_name = f"{handler}_{tipo}_{i}"
+            res = requests.delete(f"{FLOODLIGHT_URL}/wm/staticflowpusher/json", json={"name": flow_name})
+            if res.status_code == 200:
+                print(f"✅ Flow eliminado: {flow_name}")
+                eliminado = True
+        if not eliminado:
+            break  
+
+    conexiones.remove(conexion)
+    print(f"Conexión '{handler}' eliminada correctamente.")
 
 #Punto de conexión de un host
 def get_attachment_points(mac_address):
@@ -160,6 +199,22 @@ def get_attachment_points(mac_address):
         print(f"Respuesta: {response.text}")
     
     return None, None
+
+def get_mac_from_ip(ip_objetivo):
+    ip_objetivo = ip_objetivo.strip()
+    url = f"{FLOODLIGHT_URL}/wm/device/"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        data = response.json()
+        for host in data:
+            ipv4s = host.get("ipv4", [])
+            macs = host.get("mac", [])
+            if ip_objetivo in ipv4s:
+                if macs:
+                    print(f"[OK] MAC encontrada: {macs[0]}")
+                    return macs[0]
+    return None
 
 def menu_alumnos():
     while True:
@@ -364,28 +419,6 @@ def importar_datos(name_archivo):
     except: 
         print("Ocurrió un error al importar los datos del YAML")
 
-def insertar_flows(mac_src, ip_dst, protocolo, puerto):
-    dpid, port = get_attachment_points(mac_src)
-    if not dpid:
-        print("No se pudo determinar el punto de conexión.")
-        return False
-
-    flow = {
-        "switch": dpid,
-        "name": f"flow_{mac_src}_{ip_dst}_{puerto}",
-        "priority": "32768",
-        "eth_type": "0x0800",
-        "ipv4_dst": ip_dst,
-        "eth_src": mac_src,
-        "ip_proto": "0x06" if protocolo.lower() == "tcp" else "0x11",
-        "tp_dst": str(puerto),
-        "active": "true",
-        "actions": f"output={port}"  
-    }
-    response = requests.post(f"{FLOODLIGHT_URL}/wm/staticflowpusher/json", json=flow)
-    return response.status_code == 200
-
-
 
 def get_route(src_dpid, src_port, dst_dpid, dst_port):
 
@@ -398,7 +431,54 @@ def get_route(src_dpid, src_port, dst_dpid, dst_port):
         return [(hop["switch"], hop["port"]["portNumber"]) for hop in ruta]
     return []
 
+def build_route(handler, route, mac_src, mac_dst, ip_dst, protocolo, puerto):
+    for i in range(len(route) - 1):
+        dpid = route[i][0]
+        out_port = route[i][1]
 
+        # Hacia el servidor (host -> servidor)
+        flow_fwd = {
+            "switch": dpid,
+            "name": f"{handler}_fwd_{i}",
+            "priority": "32768",
+            "eth_type": "0x0800",
+            "eth_src": mac_src,
+            "ipv4_dst": ip_dst,
+            "ip_proto": "6" if protocolo.lower() == "tcp" else "17",
+            "tp_dst": str(puerto),
+            "active": "true",
+            "actions": f"output={out_port}"
+        }
+
+        # Hacia el host (servidor -> host) 
+        flow_rev = {
+            "switch": dpid,
+            "name": f"{handler}_rev_{i}",
+            "priority": "32768",
+            "eth_type": "0x0800",
+            "eth_src": mac_dst,
+            "eth_dst": mac_src,
+            "ip_proto": "6" if protocolo.lower() == "tcp" else "17",
+            "active": "true",
+            "actions": f"output={out_port}"
+        }
+
+        # ARP
+        flow_arp = {
+            "switch": dpid,
+            "name": f"{handler}_arp_{i}",
+            "priority": "32768",
+            "eth_type": "0x0806",
+            "active": "true",
+            "actions": f"output={out_port}"
+        }
+
+        for flow in [flow_fwd, flow_rev, flow_arp]:
+            res = requests.post(f"{FLOODLIGHT_URL}/wm/staticflowpusher/json", json=flow)
+            if res.status_code != 200:
+                print(f"[ERROR] No se pudo insertar flow: {flow['name']} en switch {dpid}")
+                return False
+    return True
 
 
 def menu():
